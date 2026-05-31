@@ -1,0 +1,20 @@
+default_location: living_room
+rooms:
+  living_room:
+    display_name: Living Room
+    description: Main shared room for conversation and lounging.
+    connected_to:
+      - kitchen
+      - charging_corner
+  kitchen:
+    display_name: Kitchen
+    description: Food prep and household task area.
+    connected_to:
+      - living_room
+  charging_corner:
+    display_name: Charging Corner
+    description: Mochi's fake dock location for v0.1.
+    connected_to:
+      - living_room
+no_go_zones:
+  - bedroom

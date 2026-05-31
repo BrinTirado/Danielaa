@@ -1,0 +1,11 @@
+people:
+  daniela:
+    display_name: Daniela
+    relationship: household member
+    notes:
+      - Use text-only interactions and do not infer private details.
+  roommate:
+    display_name: Roommate
+    relationship: household member
+    notes:
+      - Unknown people should not be enrolled or remembered automatically.
