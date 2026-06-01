@@ -61,6 +61,41 @@ def test_help_lists_chat_command() -> None:
         assert command in result.stdout
 
 
+def test_help_lists_v02_commands() -> None:
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    for command in ("voice", "map-ui"):
+        assert command in result.stdout
+
+
+def test_voice_command_runs_fake_voice_turn() -> None:
+    result = invoke_cli(["voice", "where are you?"])
+
+    assert result.exit_code == 0
+    assert "Recognized" in result.stdout
+    assert "where are you?" in result.stdout
+    assert "Spoken" in result.stdout
+    assert "living_room" in result.stdout
+
+
+def test_voice_command_moves_fake_robot() -> None:
+    result = invoke_cli(["voice", "go to kitchen"])
+
+    assert result.exit_code == 0
+    assert "go to kitchen" in result.stdout
+    assert "kitchen" in result.stdout
+    assert "succeeded" in result.stdout
+
+
+def test_map_ui_command_prints_url_without_serving_forever() -> None:
+    result = invoke_cli(["map-ui", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "http://127.0.0.1:8765" in result.stdout
+    assert "Mochi map console" in result.stdout
+
+
 def test_memories_command_lists_saved_memory(tmp_path: Path) -> None:
     memory_path = tmp_path / "memory.sqlite3"
     memory = MemoryStore(memory_path).add_memory(

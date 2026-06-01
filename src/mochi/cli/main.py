@@ -9,12 +9,16 @@ from rich.table import Table
 from mochi.actions.action_router import ActionRouter
 from mochi.conversation.engine import ConversationEngine
 from mochi.conversation.fake_llm import FakeLLM
-from mochi.core.models import ActionCommand
+from mochi.core.models import ActionCommand, HouseMap, PeopleConfig, RobotProfile
 from mochi.core.settings import load_house_map, load_people_config, load_robot_profile
 from mochi.core.state import RobotState
+from mochi.map_console.runtime import MapConsoleRuntime
+from mochi.map_console.server import create_server
 from mochi.memory.store import MemoryStore
 from mochi.navigation.fake_navigator import FakeNavigator
 from mochi.personality.prompt_builder import PersonalityPromptBuilder
+from mochi.voice.engine import VoiceEngine
+from mochi.voice.fake import FakeSpeechRecognizer, FakeSpeechSynthesizer
 
 console = Console(width=140)
 
@@ -26,6 +30,9 @@ app = typer.Typer(
 
 @dataclass(frozen=True)
 class Runtime:
+    robot_profile: RobotProfile
+    house_map: HouseMap
+    people: PeopleConfig
     state: RobotState
     memory_store: MemoryStore
     navigator: FakeNavigator
@@ -67,6 +74,9 @@ def build_runtime() -> Runtime:
     )
 
     return Runtime(
+        robot_profile=robot_profile,
+        house_map=house_map,
+        people=people,
         state=state,
         memory_store=memory_store,
         navigator=navigator,
@@ -103,6 +113,69 @@ def chat() -> None:
 
         response = runtime.engine.respond(message)
         console.print(f"[bold cyan]Mochi[/bold cyan]: {response.text}")
+
+
+@app.command()
+def voice(message: str) -> None:
+    """Run one fake voice turn through Mochi."""
+    runtime = build_runtime()
+    synthesizer = FakeSpeechSynthesizer()
+    voice_engine = VoiceEngine(
+        conversation_engine=runtime.engine,
+        recognizer=FakeSpeechRecognizer([message]),
+        synthesizer=synthesizer,
+    )
+
+    try:
+        result = voice_engine.handle_turn()
+    except ValueError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=2) from error
+
+    table = Table(title="Mochi Fake Voice Turn")
+    table.add_column("Field", style="cyan", no_wrap=True)
+    table.add_column("Value")
+    table.add_row("Recognized", result.input.text)
+    table.add_row("Response", result.response_text)
+    table.add_row("Spoken", result.output.text)
+    if result.actions:
+        action_summary = ", ".join(
+            "succeeded" if action.succeeded else "failed" for action in result.actions
+        )
+        table.add_row("Actions", action_summary)
+    console.print(table)
+
+
+@app.command("map-ui")
+def map_ui(
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    dry_run: bool = False,
+) -> None:
+    """Start the local Mochi map console."""
+    runtime = build_runtime()
+    console_runtime = MapConsoleRuntime(
+        house_map=runtime.house_map,
+        state=runtime.state,
+        conversation_engine=runtime.engine,
+    )
+    url = f"http://{host}:{port}"
+    console.print(f"Mochi map console: {url}")
+    if dry_run:
+        return
+
+    try:
+        server = create_server(console_runtime, host=host, port=port)
+    except OSError as error:
+        console.print(f"[red]Could not start map console on {url}: {error}[/red]")
+        raise typer.Exit(code=1) from error
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        console.print()
+    finally:
+        server.server_close()
 
 
 @app.command()
