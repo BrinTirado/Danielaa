@@ -6,15 +6,24 @@ rooms:
     connected_to:
       - kitchen
       - charging_corner
+    map_position:
+      x: 160
+      y: 160
   kitchen:
     display_name: Kitchen
     description: Food prep and household task area.
     connected_to:
       - living_room
+    map_position:
+      x: 420
+      y: 90
   charging_corner:
     display_name: Charging Corner
     description: Mochi's fake dock location for v0.1.
     connected_to:
       - living_room
+    map_position:
+      x: 420
+      y: 250
 no_go_zones:
   - bedroom

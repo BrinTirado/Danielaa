@@ -24,6 +24,9 @@ def test_load_house_map() -> None:
     assert house_map.default_location == "living_room"
     assert "kitchen" in house_map.rooms
     assert "bedroom" in house_map.no_go_zones
+    assert house_map.rooms["living_room"].map_position is not None
+    assert house_map.rooms["living_room"].map_position.x == 160
+    assert house_map.rooms["living_room"].map_position.y == 160
 
 
 def test_load_people_config() -> None:

@@ -21,10 +21,16 @@ class RobotProfile(MochiBaseModel):
     catchphrases: list[str] = Field(default_factory=list)
 
 
+class MapPosition(MochiBaseModel):
+    x: int = Field(ge=0)
+    y: int = Field(ge=0)
+
+
 class Room(MochiBaseModel):
     display_name: str = ""
     description: str = ""
     connected_to: list[str] = Field(default_factory=list)
+    map_position: MapPosition | None = None
 
 
 class HouseMap(MochiBaseModel):
