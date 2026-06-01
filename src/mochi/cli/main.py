@@ -159,17 +159,20 @@ def map_ui(
         state=runtime.state,
         conversation_engine=runtime.engine,
     )
-    url = f"http://{host}:{port}"
-    console.print(f"Mochi map console: {url}")
     if dry_run:
+        url = f"http://{host}:{port}"
+        console.print(f"Mochi map console: {url}")
         return
 
     try:
         server = create_server(console_runtime, host=host, port=port)
     except OSError as error:
+        url = f"http://{host}:{port}"
         console.print(f"[red]Could not start map console on {url}: {error}[/red]")
         raise typer.Exit(code=1) from error
 
+    url = f"http://{host}:{server.server_port}"
+    console.print(f"Mochi map console: {url}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,4 +1,5 @@
 import os
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -94,6 +95,48 @@ def test_map_ui_command_prints_url_without_serving_forever() -> None:
     assert result.exit_code == 0
     assert "http://127.0.0.1:8765" in result.stdout
     assert "Mochi map console" in result.stdout
+
+
+def test_map_ui_dry_run_prints_custom_url_without_binding() -> None:
+    result = invoke_cli(["map-ui", "--host", "localhost", "--port", "9001", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "Mochi map console: http://localhost:9001" in result.stdout
+
+
+def test_map_ui_command_failure_does_not_print_success_url() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied_socket:
+        occupied_socket.bind(("127.0.0.1", 0))
+        occupied_socket.listen()
+        occupied_port = occupied_socket.getsockname()[1]
+
+        result = invoke_cli(["map-ui", "--port", str(occupied_port)])
+
+    assert result.exit_code == 1
+    assert "Could not start map console" in result.stdout
+    assert f"http://127.0.0.1:{occupied_port}" in result.stdout
+    assert "Mochi map console:" not in result.stdout
+
+
+def test_map_ui_command_reports_actual_bound_port(monkeypatch) -> None:
+    class FakeServer:
+        server_port = 54321
+
+        def serve_forever(self) -> None:
+            raise KeyboardInterrupt
+
+        def server_close(self) -> None:
+            return
+
+    monkeypatch.setattr(
+        sys.modules["mochi.cli.main"], "create_server", lambda *args, **kwargs: FakeServer()
+    )
+
+    result = invoke_cli(["map-ui", "--port", "0"])
+
+    assert result.exit_code == 0
+    assert "Mochi map console: http://127.0.0.1:54321" in result.stdout
+    assert "http://127.0.0.1:0" not in result.stdout
 
 
 def test_memories_command_lists_saved_memory(tmp_path: Path) -> None:
