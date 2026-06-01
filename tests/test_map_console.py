@@ -1,3 +1,5 @@
+from threading import Event, Thread
+
 import pytest
 
 from mochi.actions.action_router import ActionRouter
@@ -283,9 +285,46 @@ def test_runtime_voice_turn_records_voice_source(tmp_path) -> None:
     snapshot = runtime.handle_voice_text("go to kitchen")
 
     assert snapshot.current_location == "kitchen"
+    assert runtime.last_voice_output == "Mochi fake-navigated to kitchen."
     assert snapshot.last_turn is not None
     assert snapshot.last_turn.source == "voice"
     assert snapshot.movements[0].source == "voice"
+
+
+def test_runtime_snapshot_waits_for_command_turn_to_finish(tmp_path) -> None:
+    runtime = make_runtime(tmp_path)
+    original_respond = runtime.conversation_engine.respond
+    respond_started = Event()
+    allow_respond_to_finish = Event()
+    snapshot_returned = Event()
+    snapshots = []
+
+    def blocking_respond(text: str) -> ConversationResponse:
+        respond_started.set()
+        assert allow_respond_to_finish.wait(timeout=2)
+        return original_respond(text)
+
+    runtime.conversation_engine.respond = blocking_respond  # type: ignore[method-assign]
+
+    command_thread = Thread(target=lambda: runtime.handle_command("go to kitchen"))
+    snapshot_thread = Thread(
+        target=lambda: (snapshots.append(runtime.snapshot()), snapshot_returned.set())
+    )
+
+    command_thread.start()
+    assert respond_started.wait(timeout=2)
+    snapshot_thread.start()
+
+    returned_while_command_was_in_flight = snapshot_returned.wait(timeout=0.05)
+
+    allow_respond_to_finish.set()
+    command_thread.join(timeout=2)
+    snapshot_thread.join(timeout=2)
+
+    assert not returned_while_command_was_in_flight
+    assert not command_thread.is_alive()
+    assert not snapshot_thread.is_alive()
+    assert snapshots[0].current_location == "kitchen"
 
 
 def test_runtime_empty_command_raises_value_error(tmp_path) -> None:
@@ -293,3 +332,10 @@ def test_runtime_empty_command_raises_value_error(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="Command text cannot be empty"):
         runtime.handle_command(" ")
+
+
+def test_runtime_empty_voice_text_raises_value_error(tmp_path) -> None:
+    runtime = make_runtime(tmp_path)
+
+    with pytest.raises(ValueError, match="Voice text cannot be empty"):
+        runtime.handle_voice_text(" ")

@@ -1,3 +1,5 @@
+from threading import RLock
+
 from mochi.conversation.engine import ConversationEngine, ConversationResponse
 from mochi.core.models import HouseMap
 from mochi.core.state import RobotState
@@ -22,8 +24,13 @@ class MapConsoleRuntime:
         self.conversation_engine = conversation_engine
         self.history = history or MovementHistory()
         self.last_voice_output: str | None = None
+        self._lock = RLock()
 
     def snapshot(self) -> MapSnapshot:
+        with self._lock:
+            return self._snapshot_unlocked()
+
+    def _snapshot_unlocked(self) -> MapSnapshot:
         return build_map_snapshot(
             house_map=self.house_map,
             state=self.state,
@@ -31,36 +38,38 @@ class MapConsoleRuntime:
         )
 
     def handle_command(self, text: str, *, source: str = "map-ui") -> MapSnapshot:
-        command_text = self._clean_text(text, label="Command text")
-        start_location = self.state.location
-        response = self.conversation_engine.respond(command_text)
-        self._record(
-            source=source,
-            input_text=command_text,
-            response=response,
-            start_location=start_location,
-        )
-        return self.snapshot()
+        with self._lock:
+            command_text = self._clean_text(text, label="Command text")
+            start_location = self.state.location
+            response = self.conversation_engine.respond(command_text)
+            self._record(
+                source=source,
+                input_text=command_text,
+                response=response,
+                start_location=start_location,
+            )
+            return self._snapshot_unlocked()
 
     def handle_voice_text(self, text: str) -> MapSnapshot:
-        voice_text = self._clean_text(text, label="Voice text")
-        start_location = self.state.location
-        synthesizer = FakeSpeechSynthesizer()
-        voice = VoiceEngine(
-            conversation_engine=self.conversation_engine,
-            recognizer=FakeSpeechRecognizer([voice_text]),
-            synthesizer=synthesizer,
-        )
-        result = voice.handle_turn()
-        self.last_voice_output = result.output.text
-        response = ConversationResponse(text=result.response_text, actions=result.actions)
-        self._record(
-            source="voice",
-            input_text=result.input.text,
-            response=response,
-            start_location=start_location,
-        )
-        return self.snapshot()
+        with self._lock:
+            voice_text = self._clean_text(text, label="Voice text")
+            start_location = self.state.location
+            synthesizer = FakeSpeechSynthesizer()
+            voice = VoiceEngine(
+                conversation_engine=self.conversation_engine,
+                recognizer=FakeSpeechRecognizer([voice_text]),
+                synthesizer=synthesizer,
+            )
+            result = voice.handle_turn()
+            self.last_voice_output = result.output.text
+            response = ConversationResponse(text=result.response_text, actions=result.actions)
+            self._record(
+                source="voice",
+                input_text=result.input.text,
+                response=response,
+                start_location=start_location,
+            )
+            return self._snapshot_unlocked()
 
     def _record(
         self,
