@@ -1,8 +1,24 @@
-from mochi.conversation.engine import ConversationResponse
-from mochi.core.models import ActionResult, HouseMap, MapPosition, Room
+import pytest
+
+from mochi.actions.action_router import ActionRouter
+from mochi.conversation.engine import ConversationEngine, ConversationResponse
+from mochi.conversation.fake_llm import FakeLLM
+from mochi.core.models import (
+    ActionResult,
+    HouseMap,
+    MapPosition,
+    PeopleConfig,
+    PersonalityConfig,
+    RobotProfile,
+    Room,
+)
 from mochi.core.state import RobotState
 from mochi.map_console.history import MovementHistory
+from mochi.map_console.runtime import MapConsoleRuntime
 from mochi.map_console.snapshot import build_map_snapshot
+from mochi.memory.store import MemoryStore
+from mochi.navigation.fake_navigator import FakeNavigator
+from mochi.personality.prompt_builder import PersonalityPromptBuilder
 
 
 def make_map() -> HouseMap:
@@ -213,3 +229,67 @@ def test_build_map_snapshot_uses_explicit_positions_and_dumps_json() -> None:
         ("kitchen", 250, 90),
     ]
     assert snapshot.model_dump(mode="json")["rooms"][0]["x"] == 25
+
+
+def make_runtime(tmp_path) -> MapConsoleRuntime:
+    house_map = make_map()
+    profile = RobotProfile(
+        name="Mochi",
+        personality=PersonalityConfig(
+            vibe="playful",
+            energy_level="medium",
+            humor_style="dry",
+            talkativeness="low",
+        ),
+        rules=[],
+        catchphrases=[],
+    )
+    state = RobotState(name="Mochi", location="living_room")
+    store = MemoryStore(tmp_path / "memory.sqlite3")
+    router = ActionRouter(
+        state=state,
+        memory_store=store,
+        navigator=FakeNavigator(house_map, state),
+    )
+    conversation = ConversationEngine(
+        state=state,
+        memory_store=store,
+        action_router=router,
+        prompt_builder=PersonalityPromptBuilder(profile),
+        llm=FakeLLM(response="Tiny robot brain engaged."),
+        people=PeopleConfig(),
+    )
+    return MapConsoleRuntime(
+        house_map=house_map,
+        state=state,
+        conversation_engine=conversation,
+    )
+
+
+def test_runtime_command_updates_snapshot_and_history(tmp_path) -> None:
+    runtime = make_runtime(tmp_path)
+
+    snapshot = runtime.handle_command("go to kitchen")
+
+    assert snapshot.current_location == "kitchen"
+    assert snapshot.last_turn is not None
+    assert snapshot.last_turn.input_text == "go to kitchen"
+    assert snapshot.movements[0].requested_destination == "kitchen"
+
+
+def test_runtime_voice_turn_records_voice_source(tmp_path) -> None:
+    runtime = make_runtime(tmp_path)
+
+    snapshot = runtime.handle_voice_text("go to kitchen")
+
+    assert snapshot.current_location == "kitchen"
+    assert snapshot.last_turn is not None
+    assert snapshot.last_turn.source == "voice"
+    assert snapshot.movements[0].source == "voice"
+
+
+def test_runtime_empty_command_raises_value_error(tmp_path) -> None:
+    runtime = make_runtime(tmp_path)
+
+    with pytest.raises(ValueError, match="Command text cannot be empty"):
+        runtime.handle_command(" ")
