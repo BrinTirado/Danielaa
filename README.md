@@ -7,17 +7,16 @@ the conversation system directly to hardware.
 
 ## Current Phase
 
-v0.1 is software-only and text-only. It includes:
+v0.2 is software-only. It includes the v0.1 text brain plus:
 
-- Terminal chat through Typer and Rich.
-- A configurable personality profile.
-- Explicit local memory stored in SQLite.
-- Fake robot state, fake navigation, and fake actions.
-- Privacy mode.
-- Tests and linting.
+- Fake voice input and output seams.
+- A simulated voice command path through the conversation engine.
+- A local browser map console for fake navigation state.
+- Movement history for successful and blocked fake moves.
 
-v0.1 does not include real robot hardware, ROS, cameras, microphones, motors,
-webcam awareness, voice, autonomous background loops, or Home Assistant.
+v0.2 does not include real robot hardware, ROS, cameras, microphones, motors,
+live audio capture, real speaker output, webcam awareness, autonomous background
+loops, or Home Assistant.
 
 ## Requirements
 
@@ -73,6 +72,18 @@ Turn privacy mode on or off for the current local session:
 ```bash
 mochi privacy on
 mochi privacy off
+```
+
+Run one fake voice turn:
+
+```bash
+mochi voice "go to kitchen"
+```
+
+Start the local map console:
+
+```bash
+mochi map-ui
 ```
 
 ## Chat Commands
@@ -142,9 +153,10 @@ docs/                   Plans, lessons, and project notes
 
 ## Roadmap
 
-- v0.2: Voice input and output.
-- v0.3: Webcam awareness.
-- v0.4: Autonomous loop.
-- v0.5: Home Assistant integration.
-- v0.6: ROS/Gazebo simulation.
+- v0.2: Fake voice seams and local map console.
+- v0.3: Voice input/output provider experiment.
+- v0.4: Webcam awareness.
+- v0.5: Autonomous loop.
+- v0.6: Home Assistant integration.
+- v0.7: ROS/Gazebo simulation.
 - v1.0: Real hardware adapter.
