@@ -179,7 +179,8 @@ APP_HTML = """<!doctype html>
     }
 
     .turn,
-    .movement {
+    .movement,
+    .zone-list {
       margin-top: 10px;
       border: 1px solid var(--line);
       border-radius: 6px;
@@ -200,6 +201,23 @@ APP_HTML = """<!doctype html>
       background: var(--danger-soft);
       color: var(--danger);
       padding: 9px 10px;
+    }
+
+    .zone-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      list-style: none;
+      margin-bottom: 0;
+    }
+
+    .zone-list li {
+      border: 1px solid #ffc9c2;
+      border-radius: 999px;
+      background: var(--danger-soft);
+      color: var(--danger);
+      padding: 5px 9px;
+      overflow-wrap: anywhere;
     }
 
     .room {
@@ -316,6 +334,11 @@ APP_HTML = """<!doctype html>
           <div id="last-turn"></div>
         </section>
 
+        <section class="section" aria-labelledby="no-go-zones-title">
+          <h2 id="no-go-zones-title">No-Go Zones</h2>
+          <div id="no-go-zones"></div>
+        </section>
+
         <section class="section" aria-labelledby="movement-history-title">
           <h2 id="movement-history-title">Movement History</h2>
           <div id="movement-history"></div>
@@ -328,6 +351,7 @@ APP_HTML = """<!doctype html>
     const map = document.querySelector("#map");
     const stateEl = document.querySelector("#state");
     const lastTurnEl = document.querySelector("#last-turn");
+    const noGoZonesEl = document.querySelector("#no-go-zones");
     const movementHistoryEl = document.querySelector("#movement-history");
     const errorEl = document.querySelector("#error");
     const statusEl = document.querySelector("#connection-status");
@@ -377,6 +401,7 @@ APP_HTML = """<!doctype html>
       statusEl.textContent = "Current location: " + snapshot.current_location;
       renderState(snapshot);
       renderLastTurn(snapshot.last_turn);
+      renderNoGoZones(snapshot.no_go_zones || []);
       renderMovements(snapshot.movements || []);
       renderMap(snapshot);
     }
@@ -410,6 +435,18 @@ APP_HTML = """<!doctype html>
           <div>${escapeHtml(turn.input_text)}</div>
           <div>${escapeHtml(turn.response_text)}</div>
         </div>
+      `;
+    }
+
+    function renderNoGoZones(noGoZones) {
+      if (!noGoZones.length) {
+        noGoZonesEl.innerHTML = '<p class="empty">No blocked zones.</p>';
+        return;
+      }
+      noGoZonesEl.innerHTML = `
+        <ul class="zone-list">
+          ${noGoZones.map((zone) => `<li>${escapeHtml(zone)}</li>`).join("")}
+        </ul>
       `;
     }
 

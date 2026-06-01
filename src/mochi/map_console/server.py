@@ -36,6 +36,9 @@ def create_server(
 
         def do_POST(self) -> None:
             path = urlparse(self.path).path
+            if path not in {"/api/command", "/api/voice-turn"}:
+                self._send_json({"error": "Not found."}, status=HTTPStatus.NOT_FOUND)
+                return
             try:
                 payload = self._read_json()
                 text = payload.get("text", "")

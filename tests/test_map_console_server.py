@@ -105,6 +105,12 @@ def request_text(port: int, method: str, path: str) -> tuple[int, str]:
         connection.close()
 
 
+def stop_server(server, thread: threading.Thread) -> None:
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=1)
+
+
 def test_server_serves_map_console_html(tmp_path) -> None:
     runtime = make_runtime(tmp_path)
     server = create_server(runtime, host="127.0.0.1", port=0)
@@ -113,11 +119,26 @@ def test_server_serves_map_console_html(tmp_path) -> None:
     try:
         status, html = request_text(server.server_port, "GET", "/")
     finally:
-        server.shutdown()
-        server.server_close()
+        stop_server(server, thread)
 
     assert status == 200
     assert "Mochi Map Console" in html
+
+
+def test_server_html_has_no_go_zones_display_hook(tmp_path) -> None:
+    runtime = make_runtime(tmp_path)
+    server = create_server(runtime, host="127.0.0.1", port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status, html = request_text(server.server_port, "GET", "/")
+    finally:
+        stop_server(server, thread)
+
+    assert status == 200
+    assert 'id="no-go-zones"' in html
+    assert "renderNoGoZones(snapshot.no_go_zones || [])" in html
+    assert "function renderNoGoZones(noGoZones)" in html
 
 
 def test_server_serves_snapshot_json(tmp_path) -> None:
@@ -128,8 +149,7 @@ def test_server_serves_snapshot_json(tmp_path) -> None:
     try:
         status, snapshot = request_json(server.server_port, "GET", "/api/snapshot")
     finally:
-        server.shutdown()
-        server.server_close()
+        stop_server(server, thread)
 
     assert status == 200
     assert snapshot["current_location"] == "living_room"
@@ -148,8 +168,7 @@ def test_server_command_updates_snapshot_and_movement_history(tmp_path) -> None:
             {"text": "go to kitchen"},
         )
     finally:
-        server.shutdown()
-        server.server_close()
+        stop_server(server, thread)
 
     assert status == 200
     assert snapshot["current_location"] == "kitchen"
@@ -169,8 +188,31 @@ def test_server_voice_turn_rejects_empty_text(tmp_path) -> None:
             {"text": " "},
         )
     finally:
-        server.shutdown()
-        server.server_close()
+        stop_server(server, thread)
 
     assert status == 400
     assert "cannot be empty" in payload["error"]
+
+
+def test_server_unknown_post_returns_not_found_before_reading_json(tmp_path) -> None:
+    runtime = make_runtime(tmp_path)
+    server = create_server(runtime, host="127.0.0.1", port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = HTTPConnection("127.0.0.1", server.server_port, timeout=5)
+    try:
+        connection.request(
+            "POST",
+            "/api/not-real",
+            body=b"{",
+            headers={"Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        status = response.status
+        payload = json.loads(response.read().decode("utf-8"))
+    finally:
+        connection.close()
+        stop_server(server, thread)
+
+    assert status == 404
+    assert payload == {"error": "Not found."}
