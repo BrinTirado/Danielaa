@@ -1,3 +1,4 @@
+from mochi.voice.base import SpeechRecognizer, SpeechSynthesizer
 from mochi.voice.engine import VoiceEngine
 from mochi.voice.fake import FakeSpeechRecognizer, FakeSpeechSynthesizer
 from mochi.voice.models import SpeechInput, SpeechOutput, VoiceTurnResult
@@ -7,6 +8,8 @@ __all__ = [
     "FakeSpeechSynthesizer",
     "SpeechInput",
     "SpeechOutput",
+    "SpeechRecognizer",
+    "SpeechSynthesizer",
     "VoiceEngine",
     "VoiceTurnResult",
 ]
